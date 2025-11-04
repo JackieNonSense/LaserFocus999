@@ -1,0 +1,141 @@
+# ========================================
+# COMP9517 Computer Vision Project
+# Insect Detection and Classification
+# ========================================
+
+# Claude AI and API Keys
+.claude/
+*.claude
+.anthropic/
+anthropic.json
+claude_config.json
+api_keys.json
+.env
+.env.local
+.env.*.local
+**/*api_key*
+**/*secret*
+**/*token*
+
+# Dataset Files (Large - Do not upload)
+data/
+dataset/
+datasets/
+AgroPest-12/
+*.zip
+images/
+raw_images/
+train/
+val/
+validation/
+test/
+
+# Trained Models (Project requirement - Do not upload)
+models/
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.ckpt
+*.pb
+*.pkl
+*.pickle
+*.joblib
+*.model
+weights/
+checkpoints/
+saved_models/
+
+# Results and Outputs (Do not upload)
+results/
+output/
+outputs/
+predictions/
+visualizations/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+!figures/*.png
+!figures/*.jpg
+logs/
+runs/
+tensorboard/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+.jupyter/
+
+# IDE Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# PyTorch
+lightning_logs/
+
+# TensorFlow
+*.tfevents.*
+
+# Cache
+.cache/
+*.cache
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+
+# Video Files (keep only final submission video)
+videos/
+*.mp4
+*.avi
+*.mov
+!final_presentation.mp4
+
+# Report Drafts (keep only final PDF)
+report_drafts/
+*.docx
+!final_report.pdf

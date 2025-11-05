@@ -2,43 +2,25 @@
 
 AgroPest-12 dataset insect detection and classification using multiple computer vision methods.
 
-## Project Overview
-
-**Goal**: Develop and compare different computer vision methods for detecting and classifying insects in agricultural environments.
-
-**Dataset**: AgroPest-12 (12 insect classes)
-- 11,502 training images
-- 1,095 validation images
-- 546 test images
-
-## Team Structure
-
-Each team member develops their method in a separate directory:
+## Project Structure
 
 ```
 LaserFocus999/
-├── data/                    # Shared dataset (not in git)
-│   ├── AgroPest-12/        # Raw dataset
-│   └── splits/             # IMPORTANT: Unified train/val/test splits
+├── data/AgroPest-12/       # Dataset (not in git)
+│   ├── train/              # Training set
+│   │   ├── images/
+│   │   └── labels/         # YOLO format (.txt)
+│   ├── valid/              # Validation set
+│   └── test/               # Test set (ONLY for final evaluation)
 ├── faster-rcnn/            # Faster R-CNN implementation
 ├── yolo/                   # YOLO implementation
-├── comparison/             # Shared comparison and evaluation
-├── utils/                  # Shared utility functions
-└── docs/                   # Shared documentation
+├── comparison/             # Shared evaluation and comparison
+│   ├── scripts/            # Unified evaluation scripts
+│   └── results/            # Results from all methods
+└── utils/                  # Shared utility functions
 ```
 
-## Important: Data Splits
-
-**CRITICAL**: All team members MUST use the same data splits to ensure fair comparison.
-
-The unified splits are located in `data/splits/`:
-- `train.txt` - Training set file list
-- `val.txt` - Validation set file list
-- `test.txt` - Test set file list
-
-DO NOT create your own splits. Use these files to load data.
-
-## Setup Instructions
+## Setup
 
 ### 1. Clone Repository
 ```bash
@@ -47,34 +29,57 @@ cd LaserFocus999
 ```
 
 ### 2. Download Dataset
-Download AgroPest-12 from Kaggle:
-https://www.kaggle.com/datasets/rupankarmajumdar/crop-pests-dataset
+From Kaggle: https://www.kaggle.com/datasets/rupankarmajumdar/crop-pests-dataset
 
-Extract to `data/AgroPest-12/`
-
-### 3. Create Your Method Directory
+Using Kaggle CLI:
 ```bash
-mkdir your-method-name/
-cd your-method-name/
-# Add your implementation here
+pip install kaggle
+# Setup kaggle.json in ~/.kaggle/
+kaggle datasets download -d rupankarmajumdar/crop-pests-dataset --unzip
 ```
 
-### 4. Use Shared Data Splits
-When loading data, always refer to `../data/splits/train.txt`, `val.txt`, `test.txt`
+Place extracted files in `data/AgroPest-12/`
+
+### 3. Create Your Branch
+```bash
+git checkout -b YourName/MethodName
+```
+
+## Important Notes
+
+### Dataset
+- **Format**: YOLO format (images + labels)
+- **Splits**: Pre-defined train/valid/test - **DO NOT modify or create your own**
+- **YOLO team**: Use directly without conversion
+- **Other methods**: Convert to required format (e.g., COCO for Detectron2)
+
+### Git Workflow
+```bash
+# Work on your branch
+git add .
+git commit -m "Your commit message"
+git push origin YourName/MethodName
+
+# Create Pull Request to merge into main
+```
+
+### What NOT to Commit
+Already configured in `.gitignore`:
+- Dataset files (`data/`, images)
+- Trained models (`*.pth`, `*.h5`, `models/`)
+- Results and outputs (`results/`, `output/`)
+- API keys (`.env`, `.claude/`)
 
 ## Required Evaluation Metrics
 
-All methods must report the following metrics on the test set:
+All methods must report on the **test set**:
 
-**Detection Performance**:
+**Detection**:
 - Mean Average Precision (mAP)
-- mAP@0.5
-- mAP@0.75
+- mAP@0.5, mAP@0.75
 
-**Classification Performance**:
-- Precision (per-class and average)
-- Recall (per-class and average)
-- F1 Score (per-class and average)
+**Classification**:
+- Precision, Recall, F1 Score (per-class and average)
 - Accuracy
 - AUC
 
@@ -83,57 +88,25 @@ All methods must report the following metrics on the test set:
 - Inference time (FPS)
 - GPU memory usage
 
-## Workflow
+## Method-Specific Notes
 
-1. **Development**: Work in your own method directory
-2. **Testing**: Use shared evaluation scripts in `comparison/scripts/`
-3. **Results**: Save results to `comparison/results/<your-method>_results.json`
-4. **Comparison**: Run comparison notebook to generate final analysis
+### YOLO
+- Dataset already in YOLO format - use directly
+- No conversion needed
 
-## Git Workflow
+### Faster R-CNN / Detectron2
+- Need to convert YOLO → COCO format
+- Conversion script: `faster-rcnn/scripts/yolo_to_coco.py`
 
-### Create Your Feature Branch
-```bash
-git checkout -b YourName/MethodName
-```
-
-### Work on Your Branch
-```bash
-# Make changes
-git add .
-git commit -m "Add feature X"
-git push origin YourName/MethodName
-```
-
-### Merge to Main
-Create a Pull Request for team review before merging.
-
-## What NOT to Commit
-
-The `.gitignore` is configured to exclude:
-- Dataset files (`data/`, `*.zip`, images)
-- Trained models (`*.pth`, `*.h5`, `models/`)
-- Results (`results/`, `output/`)
-- API keys and configs (`.env`, `.claude/`)
-
-Only commit:
-- Source code
-- Configuration files
-- Documentation
-- Small figures for reports
+### Other Methods
+- Implement format conversion in your method directory if needed
 
 ## Deliverables
 
-1. **Video Presentation** (max 10 min, <100MB MP4)
-2. **Written Report** (max 10 pages, IEEE format, <10MB PDF)
-3. **Source Code** (ZIP, <25MB, no models/data)
+1. **Video**: Max 10 min, MP4, <100MB
+2. **Report**: Max 10 pages, IEEE format, PDF, <10MB
+3. **Code**: ZIP, <25MB (no models/data)
 
 ## Resources
 
 - **Dataset**: https://www.kaggle.com/datasets/rupankarmajumdar/crop-pests-dataset
-- **Project Spec**: [Link to course website]
-- **Team Meeting Notes**: `docs/meeting_notes.md`
-
-## Contact
-
-For questions, contact team members or consult during tutorial hours.

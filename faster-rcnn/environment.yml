@@ -1,0 +1,25 @@
+name: insect-detection
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - numpy
+  - pandas
+  - matplotlib
+  - seaborn
+  - jupyter
+  - notebook
+  - pip:
+    - opencv-python>=4.8.0
+    - pillow>=10.0.0
+    - scikit-learn>=1.3.0
+    - tensorboard>=2.13.0
+    - tqdm>=4.65.0
+    - pycocotools>=2.0.6
+    - albumentations>=1.3.0
+    - pyyaml>=6.0
+    # PyTorch and Detectron2 need to be installed separately
+    # See requirements.txt for instructions

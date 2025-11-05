@@ -18,17 +18,23 @@ api_keys.json
 **/*token*
 
 # Dataset Files (Large - Do not upload)
-data/
-dataset/
-datasets/
-AgroPest-12/
+# Only ignore dataset directories in root or specific locations
+/data/
+/dataset/
+/datasets/
+/AgroPest-12/
 *.zip
-images/
-raw_images/
-train/
-val/
-validation/
-test/
+# Ignore these only when they appear as standalone directories
+/images/
+/raw_images/
+/**/train/images/
+/**/train/labels/
+/**/val/images/
+/**/val/labels/
+/**/validation/images/
+/**/validation/labels/
+/**/test/images/
+/**/test/labels/
 
 # Trained Models (Project requirement - Do not upload)
 models/

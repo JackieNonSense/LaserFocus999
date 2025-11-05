@@ -36,8 +36,7 @@ SOLVER:
   WARMUP_ITERS: 1000
   WARMUP_METHOD: "linear"
 
-  # Optimizer
-  OPTIMIZER: "SGD"
+  # Optimizer settings
   MOMENTUM: 0.9
   WEIGHT_DECAY: 0.0001
 

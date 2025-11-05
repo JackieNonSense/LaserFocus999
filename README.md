@@ -110,3 +110,4 @@ All methods must report on the **test set**:
 ## Resources
 
 - **Dataset**: https://www.kaggle.com/datasets/rupankarmajumdar/crop-pests-dataset
+

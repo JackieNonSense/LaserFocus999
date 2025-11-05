@@ -1,8 +1,6 @@
 # Faster R-CNN with ResNet-50 FPN backbone
 # Configuration for AgroPest-12 Insect Detection
 
-_BASE_: "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
-
 MODEL:
   WEIGHTS: "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
   ROI_HEADS:

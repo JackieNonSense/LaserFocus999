@@ -11,4 +11,5 @@ def selective_search_regions(img, mode="fast"):
 
     rects = ss.process()
     # rects: list of (x, y, w, h)
+    rects = rects[:400]     # keep top-N proposals per image
     return rects

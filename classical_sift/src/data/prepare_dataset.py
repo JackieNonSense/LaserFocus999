@@ -1,21 +1,22 @@
 
 import os
 from pathlib import Path
+from classical_sift.configs.config import FILE_PREFIX_TO_CLASS, CLASSES
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_ROOT = PROJECT_ROOT / "data" / "AgroPest-12"
 
-CLASSES = ["bees", "beetle", "weevil"]
-
 def list_images(split="train"):
     img_dir = DATA_ROOT / split / "images"
-    all_imgs = os.listdir(img_dir)
+    names = os.listdir(img_dir)
     selected = []
-    for cls in CLASSES:
-        for name in all_imgs:
-            # YOLO dataset format, like: bees-1-xxxx
-            if cls.lower() in name.lower():
-                selected.append((cls, img_dir/name))
+    for fname in names:
+        low = fname.lower()
+        for prefix, canonical in FILE_PREFIX_TO_CLASS.items():
+            if low.startswith(prefix + "-"):
+                if canonical in CLASSES:
+                    selected.append((canonical, img_dir / fname))
+                break
     return selected
 
 # if __name__ == "__main__":

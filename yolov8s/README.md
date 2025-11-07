@@ -27,7 +27,7 @@ pip install ultralytics numpy pandas pillow matplotlib
 
 Choose the command matching your CUDA version, or CPU-only:
 
-```bash
+
 # CUDA 12.1 (adjust if you have a different CUDA)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 

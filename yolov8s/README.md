@@ -4,14 +4,6 @@ YOLOv8-s implementation using **Ultralytics** for insect detection and classific
 
 ---
 
-## Directory Structure
-yolov8s/
-├── ass1.ipynb # Full training/validation/prediction pipeline
-├── data.yaml # Dataset config (relative paths)
-├── yolov8s_val_summary.csv # Overall validation metrics (Precision, Recall, mAP)
-└── yolov8s_val_per_class_AP.csv # Per-class AP metrics
-
----
 
 ## Setup
 

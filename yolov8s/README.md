@@ -30,13 +30,12 @@ Choose the command matching your CUDA version, or CPU-only:
 ```bash
 # CUDA 12.1 (adjust if you have a different CUDA)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-bash
-复制代码
+
 # CPU-only
 pip install torch torchvision torchaudio
+
 Verify Installation
-python
-复制代码
+
 import torch
 print("Torch:", torch.__version__)
 print("CUDA available:", torch.cuda.is_available())
@@ -45,10 +44,6 @@ if torch.cuda.is_available():
 If you see “CUDA available: True” and a GPU name like RTX 4060, your GPU is working.
 
 2️⃣ Dataset Structure
-Place the AgroPest-12 dataset in this structure:
-
-text
-复制代码
 LaserFocus999/
 └─ data/
    └─ AgroPest-12/
@@ -61,10 +56,9 @@ LaserFocus999/
       └─ test/
          ├─ images/
          └─ labels/
-Your data.yaml should look like this:
 
-yaml
-复制代码
+Place the AgroPest-12 dataset in this structure:
+Your data.yaml should look like this:
 train: ../data/AgroPest-12/train/images
 val:   ../data/AgroPest-12/valid/images
 test:  ../data/AgroPest-12/test/images
@@ -82,7 +76,6 @@ names:
   9: Snails
   10: Wasps
   11: Weevils
-
 
 ✅ No modification needed if you follow this layout.
 

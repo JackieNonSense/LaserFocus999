@@ -12,7 +12,7 @@ yolov8s/
 └── yolov8s_val_per_class_AP.csv # Per-class AP metrics
 
 yaml
-复制代码
+
 
 ---
 
@@ -25,8 +25,7 @@ yaml
 pip install ultralytics numpy pandas pillow matplotlib
 Option B – Using conda:
 
-bash
-复制代码
+
 conda create -n yolov8 python=3.10 -y
 conda activate yolov8
 pip install ultralytics numpy pandas pillow matplotlib
@@ -35,18 +34,15 @@ Install PyTorch according to your CUDA version (or CPU-only if you don’t have 
 
 GPU (CUDA 12.1):
 
-bash
-复制代码
+
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 CPU-only:
 
-bash
-复制代码
+
 pip install torch torchvision torchaudio
 Verify installation:
 
-bash
-复制代码
+
 python - <<'PY'
 import torch
 print("Torch:", torch.__version__)
@@ -55,8 +51,7 @@ PY
 3. Prepare Dataset
 Download and extract the AgroPest-12 dataset into the root directory:
 
-bash
-复制代码
+
 LaserFocus999/
 └── data/
     └── AgroPest-12/
@@ -78,8 +73,7 @@ Open yolov8s/ass1.ipynb and run all cells in order.
 
 Or, train directly from the command line:
 
-bash
-复制代码
+
 yolo detect train data=yolov8s/data.yaml model=yolov8s.pt imgsz=640 epochs=50 batch=16 name=yolov8s_results
 Step 2 – Evaluate
 The notebook automatically saves validation metrics:
@@ -91,8 +85,7 @@ yolov8s_val_per_class_AP.csv → per-class AP metrics
 Step 3 – Visualize Predictions
 Predicted images with bounding boxes and labels are saved in:
 
-bash
-复制代码
+
 runs/detect/predict/
 Expected Results (Validation)
 Metric	Value
@@ -125,7 +118,7 @@ Produces evaluation CSVs for cross-model comparison (e.g., Faster R-CNN, SIFT)
 
 Outputs
 kotlin
-复制代码
+
 runs/
 ├── detect/
 │   ├── train/

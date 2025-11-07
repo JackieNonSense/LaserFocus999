@@ -10,7 +10,7 @@ YOLOv8-s implementation using **Ultralytics** for insect detection and classific
 ### 1. Environment Setup
 
 **Option A – Using pip (Recommended):**
-```bash
+bash
 pip install ultralytics numpy pandas pillow matplotlib
 Option B – Using conda:
 conda create -n yolov8 python=3.10 -y

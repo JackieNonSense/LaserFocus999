@@ -11,7 +11,6 @@ yolov8s/
 ├── yolov8s_val_summary.csv # Overall validation metrics (Precision, Recall, mAP)
 └── yolov8s_val_per_class_AP.csv # Per-class AP metrics
 
-yaml
 
 
 ---

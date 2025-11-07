@@ -23,30 +23,32 @@ conda create -n yolov8 python=3.10 -y
 conda activate yolov8
 pip install ultralytics numpy pandas pillow matplotlib
 
-Install PyTorch
+### Install PyTorch
 
 Choose the command matching your CUDA version, or CPU-only:
 
-# Example for CUDA 12.1
+```bash
+# CUDA 12.1 (adjust if you have a different CUDA)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
+bash
+复制代码
 # CPU-only
-# pip install torch torchvision torchaudio
-
+pip install torch torchvision torchaudio
 Verify Installation
+python
+复制代码
 import torch
 print("Torch:", torch.__version__)
 print("CUDA available:", torch.cuda.is_available())
 if torch.cuda.is_available():
     print("Device:", torch.cuda.get_device_name(0))
-
-
 If you see “CUDA available: True” and a GPU name like RTX 4060, your GPU is working.
 
 2️⃣ Dataset Structure
-
 Place the AgroPest-12 dataset in this structure:
 
+text
+复制代码
 LaserFocus999/
 └─ data/
    └─ AgroPest-12/
@@ -59,10 +61,10 @@ LaserFocus999/
       └─ test/
          ├─ images/
          └─ labels/
-
-
 Your data.yaml should look like this:
 
+yaml
+复制代码
 train: ../data/AgroPest-12/train/images
 val:   ../data/AgroPest-12/valid/images
 test:  ../data/AgroPest-12/test/images

@@ -1,0 +1,517 @@
+# Grad-CAM heatmap visualization
+
+import os
+import sys
+import json
+import argparse
+from pathlib import Path
+from collections import defaultdict
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+import cv2
+import numpy as np
+import torch
+from detectron2.config import get_cfg
+from detectron2.engine import DefaultPredictor
+from detectron2 import model_zoo
+
+# Import our Grad-CAM implementation
+from utils.gradcam import GradCAM, overlay_heatmap, apply_colormap
+
+# Add src to path for dataset registration
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from data.dataset import register_all_agropest_splits
+
+
+# Class names
+CLASS_NAMES = [
+    "Insect_0", "Insect_1", "Insect_2", "Insect_3",
+    "Insect_4", "Insect_5", "Insect_6", "Insect_7",
+    "Insect_8", "Insect_9", "Insect_10", "Insect_11"
+]
+
+# Colors for bounding boxes (BGR format)
+COLORS = [
+    (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+    (255, 0, 255), (0, 255, 255), (128, 0, 0), (0, 128, 0),
+    (0, 0, 128), (128, 128, 0), (128, 0, 128), (0, 128, 128),
+]
+
+
+def setup_cfg(args):
+    """
+    Create configuration for the model.
+    """
+    cfg = get_cfg()
+
+    # Load base config
+    cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
+
+    # Merge custom config
+    if args.config_file:
+        #cfg.merge_from_file(args.config_file)    
+        cfg.merge_from_file(str(Path(__file__).resolve().parents[1] / args.config_file))
+
+    # Set model weights
+    cfg.MODEL.WEIGHTS = args.weights
+
+    # Set confidence threshold
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.min_score
+
+    cfg.freeze()
+    return cfg
+
+
+def load_coco_json(json_path):
+    """
+    Load COCO format annotations.
+
+    Returns:
+        images: Dict mapping image_id to image info
+        gt_anns: Dict mapping image_id to list of annotations
+    """
+    with open(json_path, 'r') as f:
+        coco_data = json.load(f)
+
+    images = {img['id']: img for img in coco_data['images']}
+
+    # Group ground truth annotations by image_id
+    gt_anns = defaultdict(list)
+    for ann in coco_data.get('annotations', []):
+        gt_anns[ann['image_id']].append(ann)
+
+    return images, gt_anns
+
+
+def run_inference_and_get_predictions(predictor, image_path):
+    """
+    Run inference on an image and get predictions.
+
+    Args:
+        predictor: Detectron2 predictor
+        image_path: Path to image
+
+    Returns:
+        image: Original image (BGR)
+        outputs: Model outputs
+        predictions: List of prediction dicts
+    """
+    # Read image
+    image = cv2.imread(str(image_path))
+    if image is None:
+        return None, None, None
+
+    # Run inference
+    outputs = predictor(image)
+
+    # Extract predictions
+    instances = outputs["instances"].to("cpu")
+    predictions = []
+
+    for i in range(len(instances)):
+        pred = {
+            "bbox": instances.pred_boxes.tensor[i].numpy(),  # [x1, y1, x2, y2]
+            "score": instances.scores[i].item(),
+            "category_id": instances.pred_classes[i].item(),
+        }
+        predictions.append(pred)
+
+    return image, outputs, predictions
+
+
+def generate_heatmap_for_detection(gradcam, image, pred_box, pred_class):
+    """
+    Generate Grad-CAM heatmap for a specific detection.
+
+    Args:
+        gradcam: GradCAM object
+        image: Input image (BGR, numpy array)
+        pred_box: Predicted bounding box [x1, y1, x2, y2]
+        pred_class: Predicted class index
+
+    Returns:
+        heatmap: Grad-CAM heatmap [H, W] normalized to [0, 1]
+    """
+    # Convert image to tensor
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image_tensor = torch.from_numpy(image_rgb).permute(2, 0, 1).float()
+    image_tensor = image_tensor.unsqueeze(0)  # [1, 3, H, W]
+
+    # Move to GPU if available
+    if torch.cuda.is_available():
+        image_tensor = image_tensor.cuda()
+
+    # Generate heatmap
+    heatmap = gradcam.generate_cam(
+        image_tensor,
+        target_box=pred_box.tolist(),
+        target_class=pred_class
+    )
+
+    return heatmap
+
+
+def draw_bbox_on_image(image, bbox, color, label, score, thickness=2):
+    """
+    Draw bounding box with label on image.
+
+    Args:
+        image: Image to draw on (will be modified)
+        bbox: Bounding box [x1, y1, x2, y2]
+        color: BGR color tuple
+        label: Class label
+        score: Confidence score
+        thickness: Line thickness
+    """
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+
+    # Draw rectangle
+    cv2.rectangle(image, (x1, y1), (x2, y2), color, thickness)
+
+    # Prepare label
+    text = f"{label}: {score:.2f}"
+
+    # Get text size
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, 1)
+
+    # Draw background for text
+    cv2.rectangle(image,
+                  (x1, y1 - text_height - baseline - 5),
+                  (x1 + text_width, y1),
+                  color,
+                  -1)
+
+    # Draw text
+    cv2.putText(image, text, (x1, y1 - baseline - 2),
+                font, font_scale, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+def create_visualization_grid(original_image, heatmap, predictions, show_all_boxes=True):
+    """
+    Create a grid visualization showing:
+    [Original | Heatmap | Overlay]
+
+    Args:
+        original_image: Original image (BGR)
+        heatmap: Grad-CAM heatmap [H, W]
+        predictions: List of predictions
+        show_all_boxes: Whether to show all detection boxes
+
+    Returns:
+        grid: Combined visualization image
+    """
+    # Convert original to RGB for display
+    img_rgb = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+
+    # Create colored heatmap
+    heatmap_colored = apply_colormap(heatmap)
+
+    # Create overlay
+    overlay = overlay_heatmap(img_rgb, heatmap, alpha=0.5)
+
+    # Draw bounding boxes on original and overlay
+    img_with_boxes = img_rgb.copy()
+    overlay_with_boxes = overlay.copy()
+
+    if show_all_boxes:
+        for pred in predictions:
+            bbox = pred['bbox']
+            score = pred['score']
+            category_id = pred['category_id']
+
+            color = COLORS[category_id % len(COLORS)]
+            label = CLASS_NAMES[category_id]
+
+            # Convert color from BGR to RGB
+            color_rgb = (color[2], color[1], color[0])
+
+            draw_bbox_on_image(img_with_boxes, bbox, color_rgb, label, score)
+            draw_bbox_on_image(overlay_with_boxes, bbox, color_rgb, label, score)
+
+    # Stack horizontally: [Original with boxes | Heatmap | Overlay with boxes]
+    grid = np.hstack([img_with_boxes, heatmap_colored, overlay_with_boxes])
+
+    return grid
+
+
+def select_samples(image_ids, predictions_by_image, num_samples, strategy='mixed'):
+    """
+    Select which images to visualize.
+
+    Args:
+        image_ids: List of all image IDs
+        predictions_by_image: Dict mapping image_id to predictions
+        num_samples: Number of samples to select
+        strategy: Selection strategy ('random', 'high_conf', 'low_conf', 'mixed')
+
+    Returns:
+        selected_ids: List of selected image IDs
+    """
+    import random
+
+    # Filter to only images with predictions
+    valid_ids = [img_id for img_id in image_ids
+                 if img_id in predictions_by_image and len(predictions_by_image[img_id]) > 0]
+
+    if strategy == 'random':
+        return random.sample(valid_ids, min(num_samples, len(valid_ids)))
+
+    # Calculate average confidence per image
+    image_scores = []
+    for img_id in valid_ids:
+        preds = predictions_by_image[img_id]
+        avg_score = sum(p['score'] for p in preds) / len(preds)
+        image_scores.append((img_id, avg_score))
+
+    # Sort by score
+    image_scores.sort(key=lambda x: x[1], reverse=True)
+
+    if strategy == 'high_conf':
+        return [img_id for img_id, _ in image_scores[:num_samples]]
+    elif strategy == 'low_conf':
+        return [img_id for img_id, _ in image_scores[-num_samples:]]
+    elif strategy == 'mixed':
+        half = num_samples // 2
+        high = [img_id for img_id, _ in image_scores[:half]]
+        low = [img_id for img_id, _ in image_scores[-half:]]
+        return high + low
+
+    return []
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate Grad-CAM heatmap visualizations")
+
+    parser.add_argument(
+        "--config-file",
+        type=str,
+        default="/root/LaserFocus999/faster-rcnn/configs/faster_rcnn_R50_FPN.yaml",
+        help="Path to config file"
+    )
+
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default="/root/LaserFocus999/faster-rcnn/outputs/checkpoints/faster_rcnn_R50_FPN/model_final.pth",
+        help="Path to model weights (.pth file)"
+    )
+
+    parser.add_argument(
+        "--image-dir",
+        type=str,
+        default="/root/autodl-tmp/dataset/test/images",
+        help="Directory containing test images"
+    )
+
+    parser.add_argument(
+        "--coco-json",
+        type=str,
+        default="/root/LaserFocus999/faster-rcnn/outputs/coco_annotations/test_coco.json",
+        help="Path to COCO format annotations"
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="/root/LaserFocus999/faster-rcnn/outputs/heatmaps",
+        help="Directory to save visualizations"
+    )
+
+    parser.add_argument(
+        "--data-root",
+        type=str,
+        default="/root/autodl-tmp/dataset",
+        help="Path to dataset root (for dataset registration)"
+    )
+
+    parser.add_argument(
+        "--coco-json-dir",
+        type=str,
+        default="/root/LaserFocus999/faster-rcnn/outputs/coco_annotations",
+        help="Directory containing COCO annotations (for dataset registration)"
+    )
+
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        default=20,    
+        help="Number of images to visualize"
+    )
+
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        default=0.5,
+        help="Minimum confidence score for detections"
+    )
+
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="mixed",
+        choices=['random', 'high_conf', 'low_conf', 'mixed'],
+        help="Sample selection strategy"
+    )
+
+    parser.add_argument(
+        "--target-layer",
+        type=str,
+        default="backbone.bottom_up.res5",
+        help="Target layer for Grad-CAM (default: res5 for ResNet)"
+    )
+
+    parser.add_argument(
+        "--use-gradcam-pp",
+        action="store_true",
+        help="Use Grad-CAM++ instead of Grad-CAM"
+    )
+
+    args = parser.parse_args()
+
+
+    print("=" * 60)
+    print("Grad-CAM Heatmap Visualization")
+    print("=" * 60)
+    print(f"Config: {args.config_file}")
+    print(f"Weights: {args.weights}")
+    print(f"Target layer: {args.target_layer}")
+    print(f"Output directory: {args.output_dir}")
+    print()
+
+    # Create output directory
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Register datasets (needed for model setup)
+    print("Registering datasets...")
+    register_all_agropest_splits(args.data_root, args.coco_json_dir)
+
+    # Setup model configuration
+    print("Loading model configuration...")
+    cfg = setup_cfg(args)
+
+    # Create predictor
+    print("Loading model weights...")
+    predictor = DefaultPredictor(cfg)
+
+    # Initialize Grad-CAM
+    print(f"Initializing Grad-CAM on layer: {args.target_layer}")
+    try:
+        if args.use_gradcam_pp:
+            from utils.gradcam import GradCAMPlusPlus
+            gradcam = GradCAMPlusPlus(predictor.model, target_layer_name=args.target_layer)
+            print("Using Grad-CAM++")
+        else:
+            gradcam = GradCAM(predictor.model, target_layer_name=args.target_layer)
+            print("Using Grad-CAM")
+    except Exception as e:
+        print(f"Error initializing Grad-CAM: {e}")
+        print(f"Please check if layer '{args.target_layer}' exists in the model.")
+        print("\nCommon layer names for Faster R-CNN with ResNet-50:")
+        print("  - backbone.bottom_up.res5 (last ResNet block)")
+        print("  - backbone.bottom_up.res4")
+        print("  - backbone.fpn_output4 (FPN P5)")
+        return
+
+    # Load annotations
+    print("Loading COCO annotations...")
+    images, gt_annotations = load_coco_json(args.coco_json)
+    print(f"Loaded {len(images)} images")
+
+    # Run inference on all images to get predictions
+    print("\nRunning inference to collect predictions...")
+    predictions_by_image = {}
+
+    for img_id, img_info in images.items():
+        img_path = Path(args.image_dir) / img_info['file_name']
+        if not img_path.exists():
+            continue
+
+        _, _, predictions = run_inference_and_get_predictions(predictor, img_path)
+        if predictions:
+            predictions_by_image[img_id] = predictions
+
+    print(f"Found predictions for {len(predictions_by_image)} images")
+
+    # Select samples to visualize
+    print(f"\nSelecting {args.num_samples} samples using '{args.strategy}' strategy...")
+    selected_ids = select_samples(
+        list(images.keys()),
+        predictions_by_image,
+        args.num_samples,
+        args.strategy
+    )
+
+    print(f"Selected {len(selected_ids)} images for visualization\n")
+
+    # Generate visualizations
+    print("Generating heatmap visualizations...")
+    print("-" * 60)
+
+    for idx, img_id in enumerate(selected_ids):
+        img_info = images[img_id]
+        img_filename = img_info['file_name']
+        img_path = Path(args.image_dir) / img_filename
+
+        if not img_path.exists():
+            print(f"  [{idx+1}/{len(selected_ids)}] Skipping {img_filename} (not found)")
+            continue
+
+        # Run inference
+        image, outputs, predictions = run_inference_and_get_predictions(predictor, img_path)
+
+        if image is None or not predictions:
+            print(f"  [{idx+1}/{len(selected_ids)}] Skipping {img_filename} (no predictions)")
+            continue
+
+        # Get the highest confidence detection
+        predictions.sort(key=lambda x: x['score'], reverse=True)
+        top_pred = predictions[0]
+
+        # Generate heatmap for top detection
+        try:
+            heatmap = generate_heatmap_for_detection(
+                gradcam,
+                image,
+                top_pred['bbox'],
+                top_pred['category_id']
+            )
+
+            # Create visualization grid
+            grid = create_visualization_grid(image, heatmap, predictions)
+
+            # Save visualization
+            output_path = output_dir / f"heatmap_{idx:03d}_{img_filename}"
+            grid_bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(output_path), grid_bgr)
+
+            # Print info
+            class_name = CLASS_NAMES[top_pred['category_id']]
+            score = top_pred['score']
+            print(f"  [{idx+1}/{len(selected_ids)}] {img_filename}")
+            print(f"      Top detection: {class_name} (score: {score:.3f})")
+            print(f"      Total detections: {len(predictions)}")
+            print(f"      Saved to: {output_path.name}")
+
+        except Exception as e:
+            print(f"  [{idx+1}/{len(selected_ids)}] Error processing {img_filename}: {e}")
+            continue
+
+    print("-" * 60)
+    print(f"\nVisualization complete!")
+    print(f"Generated {len(list(output_dir.glob('heatmap_*.jpg')))} heatmap visualizations")
+    print(f"Saved to: {output_dir}")
+    print("\nVisualization layout:")
+    print("  [Original Image with Boxes] | [Heatmap] | [Overlay with Boxes]")
+    print("\nHeatmap interpretation:")
+    print("  Red regions   = Model focuses here (high importance)")
+    print("  Blue regions  = Model ignores here (low importance)")
+    print("  Yellow/Green  = Medium importance")
+
+
+if __name__ == "__main__":
+    main()

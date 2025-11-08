@@ -23,6 +23,8 @@ from detectron2.data import build_detection_test_loader
 from detectron2 import model_zoo
 
 from data.dataset import register_all_agropest_splits
+# Ensure any custom ROI heads (e.g., focal) are registered before building models
+from models import focal_fast_rcnn  # noqa: F401
 
 
 def setup_cfg(args):

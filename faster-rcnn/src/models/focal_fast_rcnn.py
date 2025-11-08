@@ -7,7 +7,8 @@ from typing import Dict, List, Tuple
 import torch
 from torch.nn import functional as F
 
-from detectron2.layers import cat
+from detectron2.config import configurable
+from detectron2.layers import ShapeSpec, cat
 from detectron2.modeling.roi_heads import ROI_HEADS_REGISTRY, StandardROIHeads
 from detectron2.modeling.roi_heads.fast_rcnn import (
     FastRCNNOutputLayers,
@@ -18,8 +19,16 @@ from detectron2.modeling.roi_heads.fast_rcnn import (
 class FocalFastRCNNOutputLayers(FastRCNNOutputLayers):
     """Fast R-CNN predictor that swaps cross-entropy with focal loss."""
 
-    def __init__(self, *args, focal_alpha: float = 0.25, focal_gamma: float = 2.0, **kwargs):
-        super().__init__(*args, **kwargs)
+    @configurable
+    def __init__(
+        self,
+        input_shape: ShapeSpec,
+        *,
+        focal_alpha: float = 0.25,
+        focal_gamma: float = 2.0,
+        **kwargs,
+    ):
+        super().__init__(input_shape=input_shape, **kwargs)
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
 

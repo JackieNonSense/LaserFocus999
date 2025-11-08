@@ -158,3 +158,81 @@ pycocotools>=2.0.6
 - **Training Start**: ~00:10 (server time)
 - **Training End**: ~01:00 (server time)
 - **Evaluation Completed**: ~01:03 (server time)
+
+---
+
+# Run 1: Small Anchors + Multi-Scale Training
+
+## Changes from Baseline
+
+### Anchor Configuration
+- Changed anchor sizes from [32, 64, 128, 256, 512] to [8, 16, 32, 64, 128]
+- Rationale: COCO anchors designed for cars/people, too large for insects
+
+### Training Configuration
+- Expanded MIN_SIZE_TRAIN from 6 scales to 13 scales (512-896 pixels)
+- Added test-time augmentation: multi-scale testing + horizontal flip
+- Reduced MIN_SIZE_TEST from 800 to 704 pixels
+
+### Other Settings
+- Training iterations: 25,000 (unchanged)
+- All other hyperparameters identical to baseline
+
+## Results
+
+### Test Set Performance
+
+| Metric | Baseline (Run 0) | Run 1 | Change |
+|--------|------------------|-------|--------|
+| mAP | 41.65% | 41.74% | +0.09% |
+| AP50 | 73.06% | 72.81% | -0.25% |
+| AP75 | 41.20% | 42.56% | +1.36% |
+| APm (medium) | 14.54% | 12.39% | -2.15% |
+| APl (large) | 43.80% | 43.91% | +0.11% |
+
+### Per-Class Performance Changes
+
+| Class | Baseline | Run 1 | Change |
+|-------|----------|-------|--------|
+| 0 | 26.84% | 29.50% | +2.66% |
+| 1 | 42.62% | 41.93% | -0.69% |
+| 2 | 26.13% | 27.97% | +1.84% |
+| 3 | 27.26% | 26.73% | -0.53% |
+| 4 | 27.02% | 25.64% | -1.38% |
+| 5 | 33.51% | 31.92% | -1.59% |
+| 6 | 29.33% | 30.26% | +0.93% |
+| 7 | 76.18% | 75.61% | -0.57% |
+| 8 | 40.47% | 41.68% | +1.21% |
+| 9 | 57.17% | 54.95% | -2.22% |
+| 10 | 55.42% | 58.48% | +3.06% |
+| 11 | 57.91% | 56.21% | -1.70% |
+
+Classes improved: 5, Classes degraded: 7
+
+## Problems Identified
+
+1. Overall mAP improvement negligible (+0.09%)
+2. Medium object detection worsened significantly (APm -2.15%)
+3. More classes degraded than improved
+4. Small anchor hypothesis partially rejected
+
+## Analysis
+
+The anchor size adjustment did not produce the expected improvements:
+- Positive: Better bounding box precision (AP75 +1.36%)
+- Negative: Degraded medium object detection (APm dropped 2.15%)
+- Conclusion: Scale tuning is not the primary bottleneck
+
+Root cause appears to be class imbalance and feature discrimination issues rather than anchor mismatch. Seven classes degraded when anchors were reduced, suggesting the model struggles with distinguishing similar insect species rather than detecting objects at different scales.
+
+## Next Steps
+
+Abandon further anchor optimization. Shift focus to class imbalance problem:
+- Implement Focal Loss to address easy/hard example imbalance
+- Use class-balanced sampling for minority classes
+- Target the 5 poor-performing classes (AP < 30%)
+
+## Training Details
+- **Date**: November 8, 2025
+- **Training Time**: ~50 minutes
+- **Branch**: Yuchao/Faster-rcnn-improve

@@ -74,8 +74,9 @@ class FocalTrainer(DefaultTrainer):
 
         return build_detection_train_loader(
             cfg,
+            dataset=dataset_dicts,
             mapper=mapper,
-            sampler=sampler
+            sampler=sampler,
         )
 
 

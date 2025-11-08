@@ -24,6 +24,8 @@ from detectron2.data import DatasetCatalog
 from detectron2 import model_zoo
 
 from data.dataset import register_all_agropest_splits
+# Ensure custom ROI heads are registered
+from models import focal_fast_rcnn  # noqa: F401
 
 
 class FocalTrainer(DefaultTrainer):
@@ -54,13 +56,18 @@ class FocalTrainer(DefaultTrainer):
         # repeat_thresh: images with category frequency below this will be repeated
         repeat_thresh = cfg.DATALOADER.get("REPEAT_THRESHOLD", 0.001)
 
-        sampler = RepeatFactorTrainingSampler(
+        repeat_factors = RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
             dataset_dicts,
-            repeat_thresh=repeat_thresh
+            repeat_thresh=repeat_thresh,
+        )
+        sampler = RepeatFactorTrainingSampler(
+            repeat_factors,
+            shuffle=True,
+            seed=cfg.SEED,
         )
 
         print(f"RepeatFactorTrainingSampler initialized with threshold={repeat_thresh}")
-        print(f"Effective dataset size after resampling: {len(sampler)}")
+        print(f"Effective dataset size after resampling: {int(repeat_factors.sum().item())}")
 
         mapper = DatasetMapper(cfg, is_train=True)
 

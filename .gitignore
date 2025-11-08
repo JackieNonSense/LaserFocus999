@@ -49,7 +49,10 @@ openai_config.*
 /**/test/labels/
 
 # Trained Models (Project requirement - Do not upload)
+# Generated model checkpoints (keep source code modules)
 models/
+!faster-rcnn/src/models/
+!faster-rcnn/src/models/**/*.py
 *.h5
 *.hdf5
 *.pt

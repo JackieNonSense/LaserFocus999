@@ -161,13 +161,15 @@ pycocotools>=2.0.6
 
 ---
 
-# Run 1: Small Anchors + Multi-Scale Training
+# Run 1: Multi-Scale Anchors + Multi-Scale Training
 
 ## Changes from Baseline
 
 ### Anchor Configuration
-- Changed anchor sizes from [32, 64, 128, 256, 512] to [8, 16, 32, 64, 128]
-- Rationale: COCO anchors designed for cars/people, too large for insects
+- Changed from single-scale to multi-scale anchors per FPN level
+- Baseline: [[32], [64], [128], [256], [512]]
+- Run 1: [[8, 12, 16], [24, 32, 40], [48, 64, 80], [96, 128, 160], [192, 224, 256]]
+- Rationale: Cover small-to-large insects comprehensively (8-256px range)
 
 ### Training Configuration
 - Expanded MIN_SIZE_TRAIN from 6 scales to 13 scales (512-896 pixels)
@@ -184,55 +186,57 @@ pycocotools>=2.0.6
 
 | Metric | Baseline (Run 0) | Run 1 | Change |
 |--------|------------------|-------|--------|
-| mAP | 41.65% | 41.74% | +0.09% |
-| AP50 | 73.06% | 72.81% | -0.25% |
-| AP75 | 41.20% | 42.56% | +1.36% |
-| APm (medium) | 14.54% | 12.39% | -2.15% |
-| APl (large) | 43.80% | 43.91% | +0.11% |
+| mAP | 41.65% | 43.35% | +1.70% |
+| AP50 | 73.06% | 74.41% | +1.35% |
+| AP75 | 41.20% | 44.34% | +3.14% |
+| APm (medium) | 14.54% | 13.21% | -1.33% |
+| APl (large) | 43.80% | 45.57% | +1.77% |
 
 ### Per-Class Performance Changes
 
 | Class | Baseline | Run 1 | Change |
 |-------|----------|-------|--------|
-| 0 | 26.84% | 29.50% | +2.66% |
-| 1 | 42.62% | 41.93% | -0.69% |
-| 2 | 26.13% | 27.97% | +1.84% |
-| 3 | 27.26% | 26.73% | -0.53% |
-| 4 | 27.02% | 25.64% | -1.38% |
-| 5 | 33.51% | 31.92% | -1.59% |
-| 6 | 29.33% | 30.26% | +0.93% |
-| 7 | 76.18% | 75.61% | -0.57% |
-| 8 | 40.47% | 41.68% | +1.21% |
-| 9 | 57.17% | 54.95% | -2.22% |
-| 10 | 55.42% | 58.48% | +3.06% |
-| 11 | 57.91% | 56.21% | -1.70% |
+| 0 | 26.84% | 27.84% | +1.00% |
+| 1 | 42.62% | 43.41% | +0.79% |
+| 2 | 26.13% | 27.61% | +1.48% |
+| 3 | 27.26% | 25.83% | -1.43% |
+| 4 | 27.02% | 28.02% | +1.00% |
+| 5 | 33.51% | 33.04% | -0.47% |
+| 6 | 29.33% | 31.05% | +1.72% |
+| 7 | 76.18% | 78.18% | +2.00% |
+| 8 | 40.47% | 45.29% | +4.82% |
+| 9 | 57.17% | 61.32% | +4.15% |
+| 10 | 55.42% | 59.30% | +3.88% |
+| 11 | 57.91% | 59.32% | +1.41% |
 
-Classes improved: 5, Classes degraded: 7
-
-## Problems Identified
-
-1. Overall mAP improvement negligible (+0.09%)
-2. Medium object detection worsened significantly (APm -2.15%)
-3. More classes degraded than improved
-4. Small anchor hypothesis partially rejected
+Classes improved: 9, Classes degraded: 3
 
 ## Analysis
 
-The anchor size adjustment did not produce the expected improvements:
-- Positive: Better bounding box precision (AP75 +1.36%)
-- Negative: Degraded medium object detection (APm dropped 2.15%)
-- Conclusion: Scale tuning is not the primary bottleneck
+Multi-scale anchors produced modest but consistent improvements:
+- Overall mAP: +1.70% (41.65% → 43.35%)
+- Better bounding box precision: AP75 +3.14%
+- Large object detection improved: APl +1.77%
+- 9 out of 12 classes improved
 
-Root cause appears to be class imbalance and feature discrimination issues rather than anchor mismatch. Seven classes degraded when anchors were reduced, suggesting the model struggles with distinguishing similar insect species rather than detecting objects at different scales.
+However, critical issues remain:
+- Medium object detection still problematic (APm 13.21%, down from baseline 14.54%)
+- Small object detection completely failed (APs = NaN)
+- Classes 0-6 remain below 35% AP
+- Class imbalance effects still dominate
+
+## Conclusion
+
+Multi-scale anchors provide incremental improvements but do not solve the core problem. The performance gap between high-performing classes (7, 9, 10, 11: 59-78% AP) and low-performing classes (0-6: 26-33% AP) suggests class imbalance is the primary bottleneck, not anchor configuration.
 
 ## Next Steps
 
-Abandon further anchor optimization. Shift focus to class imbalance problem:
-- Implement Focal Loss to address easy/hard example imbalance
-- Use class-balanced sampling for minority classes
-- Target the 5 poor-performing classes (AP < 30%)
+Proceed to Run 2: Focal Loss + Class Balancing
+- Focal Loss to address easy/hard example imbalance
+- RepeatFactorTrainingSampler to oversample minority classes
+- Target poor-performing classes (AP < 35%)
 
 ## Training Details
-- **Date**: November 8, 2025
+- **Date**: November 9, 2025
 - **Training Time**: ~50 minutes
-- **Branch**: Yuchao/Faster-rcnn-improve
+- **Branch**: Yuchao/faster-rcnn-run2

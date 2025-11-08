@@ -23,6 +23,7 @@ from detectron2.data import build_detection_test_loader
 from detectron2 import model_zoo
 
 from data.dataset import register_all_agropest_splits
+from config import add_focal_config
 # Ensure any custom ROI heads (e.g., focal) are registered before building models
 from models import focal_fast_rcnn  # noqa: F401
 
@@ -32,6 +33,7 @@ def setup_cfg(args):
     Create configs for evaluation.
     """
     cfg = get_cfg()
+    add_focal_config(cfg)
 
     # Load base config
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))

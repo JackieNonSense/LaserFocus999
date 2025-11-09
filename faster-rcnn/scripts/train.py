@@ -87,9 +87,8 @@ class Trainer(DefaultTrainer):
             dataset = DatasetFromList(dataset_dicts, copy=False)
             dataset = MapDataset(dataset, mapper)
 
-            if cfg.DATALOADER.ASPECT_RATIO_GROUPING:
-                dataset = AspectRatioGroupedDataset(dataset, cfg.DATALOADER.get("ASPECT_RATIO_GROUPING_BATCH_SIZE", cfg.SOLVER.IMS_PER_BATCH))
-
+            # Note: AspectRatioGroupedDataset is incompatible with custom samplers
+            # Disable aspect ratio grouping when using RepeatFactorTrainingSampler
             batch_sampler = torch.utils.data.sampler.BatchSampler(
                 sampler, cfg.SOLVER.IMS_PER_BATCH, drop_last=True
             )

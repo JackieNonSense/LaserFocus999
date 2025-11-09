@@ -17,6 +17,11 @@ api_keys.json
 **/*secret*
 **/*token*
 
+# Agent-generated documentation (Codex)
+AGENTS.md
+.agents/
+*.agents
+
 # ChatGPT / OpenAI configs, logs, and exports
 .chatgpt/
 chatgpt/

@@ -48,8 +48,21 @@ class Trainer(DefaultTrainer):
         sampler_name = cfg.DATALOADER.get("SAMPLER_TRAIN", "TrainingSampler")
 
         if sampler_name == "RepeatFactorTrainingSampler":
-            dataset_name = cfg.DATASETS.TRAIN[0]
-            dataset_dicts = DatasetCatalog.get(dataset_name)
+            from detectron2.data import build_detection_train_loader
+            from detectron2.data.build import (
+                get_detection_dataset_dicts,
+                trivial_batch_collator,
+            )
+            from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, MapDataset
+            from detectron2.data.samplers import TrainingSampler
+
+            dataset_dicts = get_detection_dataset_dicts(
+                cfg.DATASETS.TRAIN,
+                filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+                min_keypoints=cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
+                if cfg.MODEL.KEYPOINT_ON else 0,
+                proposal_files=cfg.DATASETS.PROPOSAL_FILES_TRAIN if cfg.MODEL.LOAD_PROPOSALS else None,
+            )
 
             print(f"\nSetting up class-balanced sampling for {len(dataset_dicts)} images...")
 
@@ -69,13 +82,26 @@ class Trainer(DefaultTrainer):
             print(f"RepeatFactorTrainingSampler initialized with threshold={repeat_thresh}")
             print(f"Effective dataset size after resampling: {int(repeat_factors.sum().item())}")
 
+            # Build dataset and loader with custom sampler
             mapper = DatasetMapper(cfg, is_train=True)
+            dataset = DatasetFromList(dataset_dicts, copy=False)
+            dataset = MapDataset(dataset, mapper)
 
-            return build_detection_train_loader(
-                cfg,
-                mapper=mapper,
-                sampler=sampler
+            if cfg.DATALOADER.ASPECT_RATIO_GROUPING:
+                dataset = AspectRatioGroupedDataset(dataset, cfg.DATALOADER.get("ASPECT_RATIO_GROUPING_BATCH_SIZE", cfg.SOLVER.IMS_PER_BATCH))
+
+            batch_sampler = torch.utils.data.sampler.BatchSampler(
+                sampler, cfg.SOLVER.IMS_PER_BATCH, drop_last=True
             )
+
+            data_loader = torch.utils.data.DataLoader(
+                dataset,
+                num_workers=cfg.DATALOADER.NUM_WORKERS,
+                batch_sampler=batch_sampler,
+                collate_fn=trivial_batch_collator,
+                worker_init_fn=lambda worker_id: __import__('numpy').random.seed(cfg.SEED + worker_id),
+            )
+            return data_loader
         else:
             # Use default training sampler
             return build_detection_train_loader(cfg)

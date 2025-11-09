@@ -158,3 +158,346 @@ pycocotools>=2.0.6
 - **Training Start**: ~00:10 (server time)
 - **Training End**: ~01:00 (server time)
 - **Evaluation Completed**: ~01:03 (server time)
+
+---
+
+# Run 1: Multi-Scale Anchors + Multi-Scale Training
+
+## Changes from Baseline
+
+### Anchor Configuration
+- Changed from single-scale to multi-scale anchors per FPN level
+- Baseline: [[32], [64], [128], [256], [512]]
+- Run 1: [[8, 12, 16], [24, 32, 40], [48, 64, 80], [96, 128, 160], [192, 224, 256]]
+- Rationale: Cover small-to-large insects comprehensively (8-256px range)
+
+### Training Configuration
+- Expanded MIN_SIZE_TRAIN from 6 scales to 13 scales (512-896 pixels)
+- Added test-time augmentation: multi-scale testing + horizontal flip
+- Reduced MIN_SIZE_TEST from 800 to 704 pixels
+
+### Other Settings
+- Training iterations: 25,000 (unchanged)
+- All other hyperparameters identical to baseline
+
+## Results
+
+### Test Set Performance
+
+| Metric | Baseline (Run 0) | Run 1 | Change |
+|--------|------------------|-------|--------|
+| mAP | 41.65% | 43.35% | +1.70% |
+| AP50 | 73.06% | 74.41% | +1.35% |
+| AP75 | 41.20% | 44.34% | +3.14% |
+| APm (medium) | 14.54% | 13.21% | -1.33% |
+| APl (large) | 43.80% | 45.57% | +1.77% |
+
+### Per-Class Performance Changes
+
+| Class | Baseline | Run 1 | Change |
+|-------|----------|-------|--------|
+| 0 | 26.84% | 27.84% | +1.00% |
+| 1 | 42.62% | 43.41% | +0.79% |
+| 2 | 26.13% | 27.61% | +1.48% |
+| 3 | 27.26% | 25.83% | -1.43% |
+| 4 | 27.02% | 28.02% | +1.00% |
+| 5 | 33.51% | 33.04% | -0.47% |
+| 6 | 29.33% | 31.05% | +1.72% |
+| 7 | 76.18% | 78.18% | +2.00% |
+| 8 | 40.47% | 45.29% | +4.82% |
+| 9 | 57.17% | 61.32% | +4.15% |
+| 10 | 55.42% | 59.30% | +3.88% |
+| 11 | 57.91% | 59.32% | +1.41% |
+
+Classes improved: 9, Classes degraded: 3
+
+## Analysis
+
+Multi-scale anchors produced modest but consistent improvements:
+- Overall mAP: +1.70% (41.65% → 43.35%)
+- Better bounding box precision: AP75 +3.14%
+- Large object detection improved: APl +1.77%
+- 9 out of 12 classes improved
+
+However, critical issues remain:
+- Medium object detection still problematic (APm 13.21%, down from baseline 14.54%)
+- Small object detection completely failed (APs = NaN)
+- Classes 0-6 remain below 35% AP
+- Class imbalance effects still dominate
+
+## Conclusion
+
+Multi-scale anchors provide incremental improvements but do not solve the core problem. The performance gap between high-performing classes (7, 9, 10, 11: 59-78% AP) and low-performing classes (0-6: 26-33% AP) suggests class imbalance is the primary bottleneck, not anchor configuration.
+
+## Next Steps
+
+Proceed to Run 2: Focal Loss + Class Balancing
+- Focal Loss to address easy/hard example imbalance
+- RepeatFactorTrainingSampler to oversample minority classes
+- Target poor-performing classes (AP < 35%)
+
+## Training Details
+- **Date**: November 9, 2025
+- **Training Time**: ~50 minutes
+- **Branch**: Yuchao/faster-rcnn-run2
+
+---
+
+# Run 2: Focal Loss + Class Balancing (FAILED)
+
+## Changes from Run 1
+
+### Loss Function
+- Replaced standard cross-entropy with **Focal Loss**
+- Parameters: Alpha=0.25, Gamma=2.0
+- Implementation: FocalStandardROIHeads with FocalFastRCNNOutputLayers
+- Rationale: Address easy/hard example imbalance
+
+### Data Sampling
+- Implemented **RepeatFactorTrainingSampler** for class balancing
+- Repeat threshold: 0.001 (oversample classes with <0.1% frequency)
+- Effective dataset size after resampling: enlarged training set
+- Rationale: Oversample minority classes
+
+### Other Settings
+- Identical anchor configuration to Run 1: multi-scale anchors
+- All other hyperparameters unchanged
+
+## Training Set Class Distribution
+
+| Class | Instances | Percentage |
+|-------|-----------|------------|
+| 0 | 2,231 | 14.60% |
+| 1 | 1,596 | 10.44% |
+| 2 | 1,058 | 6.92% |
+| 3 | 1,740 | 11.39% |
+| 4 | 1,083 | 7.09% |
+| 5 | 1,182 | 7.73% |
+| 6 | 1,071 | 7.01% |
+| 7 | 1,062 | 6.95% |
+| 8 | 918 | 6.01% |
+| 9 | 1,199 | 7.85% |
+| 10 | 1,167 | 7.64% |
+| 11 | 975 | 6.38% |
+
+## Results
+
+### Test Set Performance
+
+| Metric | Run 1 | Run 2 | Change |
+|--------|-------|-------|--------|
+| mAP | 43.35% | 33.65% | **-9.70%** |
+| AP50 | 74.41% | 57.37% | **-17.04%** |
+| AP75 | 44.34% | 36.23% | **-8.11%** |
+| APm (medium) | 13.21% | 10.92% | **-2.29%** |
+| APl (large) | 45.57% | 35.24% | **-10.33%** |
+
+### Per-Class Performance Changes
+
+| Class | Run 1 | Run 2 | Change | Severity |
+|-------|-------|-------|--------|----------|
+| 0 | 27.84% | 19.30% | -8.54% | Severe |
+| 1 | 43.41% | 38.20% | -5.21% | Moderate |
+| 2 | 27.61% | 12.24% | **-15.37%** | Critical |
+| 3 | 25.83% | 13.39% | **-12.44%** | Critical |
+| 4 | 28.02% | 19.66% | -8.36% | Severe |
+| 5 | 33.04% | 17.63% | **-15.41%** | Critical |
+| 6 | 31.05% | 24.79% | -6.26% | Moderate |
+| 7 | 78.18% | 73.50% | -4.68% | Moderate |
+| 8 | 45.29% | 24.63% | **-20.66%** | Catastrophic |
+| 9 | 61.32% | 52.07% | -9.25% | Severe |
+| 10 | 59.30% | 50.58% | -8.72% | Severe |
+| 11 | 59.32% | 57.85% | -1.47% | Minor |
+
+**Classes degraded: 12/12 (100%)**
+**Average degradation: -9.70%**
+
+## Failure Analysis
+
+### Critical Issues
+
+1. **Universal Performance Collapse**
+   - All 12 classes degraded, no improvements whatsoever
+   - 4 classes suffered catastrophic/critical degradation (>10% drop)
+   - Class 8 lost 20.66% AP - completely destroyed
+
+2. **Focal Loss Backfire**
+   - Expected to help hard examples and minority classes
+   - Instead, severely damaged performance across all classes
+   - May have over-penalized easy examples, disrupting learning
+
+3. **Class Balancing Failure**
+   - RepeatFactorTrainingSampler did not improve minority classes
+   - Classes 2, 3, 5 (relatively rare) suffered critical degradation
+   - Over-sampling may have caused overfitting or noisy gradients
+
+4. **Baseline Performance Superior**
+   - Standard cross-entropy outperforms Focal Loss by 9.70% mAP
+   - Natural class distribution better than forced balancing
+   - Suggests dataset is not severely imbalanced
+
+### Root Cause Hypothesis
+
+1. **Focal Loss Hyperparameters Mismatch**
+   - Alpha=0.25, Gamma=2.0 are standard for object detection
+   - May not suit insect classification with subtle inter-class differences
+   - Focal loss may suppress learning from moderately-hard examples
+
+2. **Sampling-Induced Overfitting**
+   - Repeated sampling of rare classes creates artificial data distribution
+   - Model may overfit to repeated instances
+   - Validation metrics (35.12% mAP) vs Test metrics (33.65% mAP) show generalization gap
+
+3. **Wrong Problem Diagnosis**
+   - Assumed class imbalance was primary bottleneck
+   - Actual problem may be fine-grained feature discrimination
+   - Insect species are visually similar, require robust features not loss reweighting
+
+## Conclusion
+
+**Run 2 is a complete failure.** Focal Loss + Class Balancing produced the worst results of all runs:
+- Baseline (Run 0): 41.65% mAP
+- Run 1 (Multi-scale anchors): 43.35% mAP ✓ Best
+- Run 2 (Focal Loss + Balancing): 33.65% mAP ✗ Worst
+
+**Key Learnings:**
+1. Class imbalance is NOT the primary bottleneck for AgroPest-12
+2. Standard cross-entropy is superior to Focal Loss for this task
+3. Natural data distribution outperforms forced class balancing
+4. Multi-scale anchors (Run 1) remain the best improvement strategy
+
+**Recommendation:** Abandon loss function / sampling approaches. Focus on:
+- Data augmentation specific to insect images
+- Better backbone architectures (e.g., ResNet-101, Swin Transformer)
+- Longer training or different learning rate schedules
+
+## Training Details
+- **Date**: November 9, 2025
+- **Training Time**: ~50 minutes
+- **Branch**: Yuchao/faster-rcnn-run2
+- **Status**: FAILED - Do not use for final model
+
+---
+
+# Run 2a: Mild Class Resampling (FAILED)
+
+## Changes from Run 1
+
+### Data Sampling
+- Implemented **RepeatFactorTrainingSampler** with mild threshold
+- REPEAT_THRESHOLD: 0.08 (only resample classes <8% frequency)
+- Actual resampling effect:
+  - Class 2 (6.92%): rep=1.04 (+4% instances)
+  - Class 4 (7.09%): rep=1.13 (+13% instances)
+  - Class 8 (6.01%): rep=1.07 (+7% instances)
+  - Other 9 classes: rep=1.00 (no resampling)
+- Effective dataset size: 11,499 → 11,686 (+1.6%)
+
+### Training Configuration
+- Shortened training: 15,000 iterations (vs 25,000)
+- LR decay at 9k and 12k iterations
+- Disabled AspectRatioGroupedDataset (incompatible with custom sampler)
+
+### Other Settings
+- Same multi-scale anchors as Run 1
+- Standard Cross-Entropy (no Focal Loss)
+- All other hyperparameters identical to Run 1
+
+## Results
+
+### Test Set Performance
+
+| Metric | Run 1 | Run 2a | Change |
+|--------|-------|--------|--------|
+| mAP | 43.35% | 42.01% | **-1.34%** |
+| AP50 | 74.41% | 73.04% | -1.37% |
+| AP75 | 44.34% | 43.11% | -1.23% |
+| APm (medium) | 13.21% | 10.62% | **-2.59%** |
+| APl (large) | 45.57% | 44.22% | -1.35% |
+
+### Per-Class Performance Changes
+
+| Class | Run 1 | Run 2a | Change | Resampled? |
+|-------|-------|--------|--------|------------|
+| 0 | 27.84% | 25.18% | -2.66% | No |
+| 1 | 43.41% | 41.96% | -1.45% | No |
+| 2 | 27.61% | 30.86% | **+3.25%** | Yes (1.04x) |
+| 3 | 25.83% | 20.41% | **-5.42%** | No |
+| 4 | 28.02% | 27.09% | -0.93% | Yes (1.13x) |
+| 5 | 33.04% | 31.71% | -1.33% | No |
+| 6 | 31.05% | 29.72% | -1.33% | No |
+| 7 | 78.18% | 78.14% | -0.04% | No |
+| 8 | 45.29% | 39.35% | **-5.94%** | Yes (1.07x) |
+| 9 | 61.32% | 57.96% | -3.36% | No |
+| 10 | 59.30% | 60.58% | +1.28% | No |
+| 11 | 59.32% | 61.11% | +1.79% | No |
+
+**Classes improved: 3, Classes degraded: 9**
+
+## Failure Analysis
+
+### Critical Finding: Resampling Backfired
+
+Of the 3 resampled classes:
+- **Class 2**: +3.25% ✓ Only success
+- **Class 4**: -0.93% ✗ No benefit from 13% resampling
+- **Class 8**: -5.94% ✗ Catastrophic degradation despite 7% resampling
+
+**Class 8 paradox**: Got 7% more training data but performance dropped 5.94%. This suggests overfitting to repeated instances rather than learning generalizable features.
+
+### Key Issues
+
+1. **Resampling Mostly Ineffective**
+   - Only 1 out of 3 resampled classes improved
+   - Class 4 received +13% instances with no benefit
+   - Class 8's severe degradation indicates potential overfitting
+
+2. **Medium Object Detection Worsened**
+   - APm dropped from 13.21% to 10.62% (-2.59%)
+   - Worse than even Run 2 (10.92%)
+   - Suggests resampling disrupted feature learning
+
+3. **Overall Performance Decline**
+   - mAP decreased by 1.34%
+   - 9 out of 12 classes degraded
+   - Even "mild" resampling caused harm
+
+4. **Training Efficiency Loss**
+   - Disabled AspectRatioGroupedDataset for compatibility
+   - May have reduced training efficiency
+   - Shorter training (15k vs 25k iters) could be insufficient
+
+## Comparison: Run 2 vs Run 2a
+
+| Approach | Run 2 | Run 2a |
+|----------|-------|--------|
+| Strategy | Focal Loss + Aggressive Resampling | Mild Resampling Only |
+| Threshold | 0.001 (very aggressive) | 0.08 (mild) |
+| mAP | 33.65% (CATASTROPHIC) | 42.01% (Poor) |
+| vs Run 1 | -9.70% | -1.34% |
+
+**Conclusion**: Mild resampling is less harmful than aggressive resampling + Focal Loss, but still degrades performance.
+
+## Final Conclusion
+
+**Run 2a confirms the findings from Run 2**: Class balancing through resampling is not beneficial for AgroPest-12.
+
+**Evidence:**
+1. Dataset is already balanced (6-15% per class, max 2.43x difference)
+2. Resampling causes overfitting (Class 8: -5.94% with +7% data)
+3. Natural data distribution is optimal for this dataset
+4. Standard training (Run 1) outperforms all resampling attempts
+
+**Ranking:**
+1. **Run 1** (Multi-scale anchors): 43.35% mAP ✓ Best
+2. Run 2a (Mild resampling): 42.01% mAP
+3. Baseline (Run 0): 41.65% mAP
+4. Run 2 (Focal Loss + Aggressive resampling): 33.65% mAP ✗ Worst
+
+**Recommendation**: Use Run 1 as final model. Abandon all class balancing approaches for AgroPest-12.
+
+## Training Details
+- **Date**: November 9, 2025
+- **Training Time**: ~30 minutes (15k iterations)
+- **Branch**: Yuchao/faster-rcnn-run2
+- **Status**: FAILED - Resampling ineffective

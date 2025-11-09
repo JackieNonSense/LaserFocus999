@@ -376,3 +376,128 @@ Proceed to Run 2: Focal Loss + Class Balancing
 - **Training Time**: ~50 minutes
 - **Branch**: Yuchao/faster-rcnn-run2
 - **Status**: FAILED - Do not use for final model
+
+---
+
+# Run 2a: Mild Class Resampling (FAILED)
+
+## Changes from Run 1
+
+### Data Sampling
+- Implemented **RepeatFactorTrainingSampler** with mild threshold
+- REPEAT_THRESHOLD: 0.08 (only resample classes <8% frequency)
+- Actual resampling effect:
+  - Class 2 (6.92%): rep=1.04 (+4% instances)
+  - Class 4 (7.09%): rep=1.13 (+13% instances)
+  - Class 8 (6.01%): rep=1.07 (+7% instances)
+  - Other 9 classes: rep=1.00 (no resampling)
+- Effective dataset size: 11,499 → 11,686 (+1.6%)
+
+### Training Configuration
+- Shortened training: 15,000 iterations (vs 25,000)
+- LR decay at 9k and 12k iterations
+- Disabled AspectRatioGroupedDataset (incompatible with custom sampler)
+
+### Other Settings
+- Same multi-scale anchors as Run 1
+- Standard Cross-Entropy (no Focal Loss)
+- All other hyperparameters identical to Run 1
+
+## Results
+
+### Test Set Performance
+
+| Metric | Run 1 | Run 2a | Change |
+|--------|-------|--------|--------|
+| mAP | 43.35% | 42.01% | **-1.34%** |
+| AP50 | 74.41% | 73.04% | -1.37% |
+| AP75 | 44.34% | 43.11% | -1.23% |
+| APm (medium) | 13.21% | 10.62% | **-2.59%** |
+| APl (large) | 45.57% | 44.22% | -1.35% |
+
+### Per-Class Performance Changes
+
+| Class | Run 1 | Run 2a | Change | Resampled? |
+|-------|-------|--------|--------|------------|
+| 0 | 27.84% | 25.18% | -2.66% | No |
+| 1 | 43.41% | 41.96% | -1.45% | No |
+| 2 | 27.61% | 30.86% | **+3.25%** | Yes (1.04x) |
+| 3 | 25.83% | 20.41% | **-5.42%** | No |
+| 4 | 28.02% | 27.09% | -0.93% | Yes (1.13x) |
+| 5 | 33.04% | 31.71% | -1.33% | No |
+| 6 | 31.05% | 29.72% | -1.33% | No |
+| 7 | 78.18% | 78.14% | -0.04% | No |
+| 8 | 45.29% | 39.35% | **-5.94%** | Yes (1.07x) |
+| 9 | 61.32% | 57.96% | -3.36% | No |
+| 10 | 59.30% | 60.58% | +1.28% | No |
+| 11 | 59.32% | 61.11% | +1.79% | No |
+
+**Classes improved: 3, Classes degraded: 9**
+
+## Failure Analysis
+
+### Critical Finding: Resampling Backfired
+
+Of the 3 resampled classes:
+- **Class 2**: +3.25% ✓ Only success
+- **Class 4**: -0.93% ✗ No benefit from 13% resampling
+- **Class 8**: -5.94% ✗ Catastrophic degradation despite 7% resampling
+
+**Class 8 paradox**: Got 7% more training data but performance dropped 5.94%. This suggests overfitting to repeated instances rather than learning generalizable features.
+
+### Key Issues
+
+1. **Resampling Mostly Ineffective**
+   - Only 1 out of 3 resampled classes improved
+   - Class 4 received +13% instances with no benefit
+   - Class 8's severe degradation indicates potential overfitting
+
+2. **Medium Object Detection Worsened**
+   - APm dropped from 13.21% to 10.62% (-2.59%)
+   - Worse than even Run 2 (10.92%)
+   - Suggests resampling disrupted feature learning
+
+3. **Overall Performance Decline**
+   - mAP decreased by 1.34%
+   - 9 out of 12 classes degraded
+   - Even "mild" resampling caused harm
+
+4. **Training Efficiency Loss**
+   - Disabled AspectRatioGroupedDataset for compatibility
+   - May have reduced training efficiency
+   - Shorter training (15k vs 25k iters) could be insufficient
+
+## Comparison: Run 2 vs Run 2a
+
+| Approach | Run 2 | Run 2a |
+|----------|-------|--------|
+| Strategy | Focal Loss + Aggressive Resampling | Mild Resampling Only |
+| Threshold | 0.001 (very aggressive) | 0.08 (mild) |
+| mAP | 33.65% (CATASTROPHIC) | 42.01% (Poor) |
+| vs Run 1 | -9.70% | -1.34% |
+
+**Conclusion**: Mild resampling is less harmful than aggressive resampling + Focal Loss, but still degrades performance.
+
+## Final Conclusion
+
+**Run 2a confirms the findings from Run 2**: Class balancing through resampling is not beneficial for AgroPest-12.
+
+**Evidence:**
+1. Dataset is already balanced (6-15% per class, max 2.43x difference)
+2. Resampling causes overfitting (Class 8: -5.94% with +7% data)
+3. Natural data distribution is optimal for this dataset
+4. Standard training (Run 1) outperforms all resampling attempts
+
+**Ranking:**
+1. **Run 1** (Multi-scale anchors): 43.35% mAP ✓ Best
+2. Run 2a (Mild resampling): 42.01% mAP
+3. Baseline (Run 0): 41.65% mAP
+4. Run 2 (Focal Loss + Aggressive resampling): 33.65% mAP ✗ Worst
+
+**Recommendation**: Use Run 1 as final model. Abandon all class balancing approaches for AgroPest-12.
+
+## Training Details
+- **Date**: November 9, 2025
+- **Training Time**: ~30 minutes (15k iterations)
+- **Branch**: Yuchao/faster-rcnn-run2
+- **Status**: FAILED - Resampling ineffective

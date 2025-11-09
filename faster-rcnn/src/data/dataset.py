@@ -6,7 +6,6 @@ Register AgroPest-12 dataset in COCO format with Detectron2.
 
 import os
 import json
-from pathlib import Path
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.structures import BoxMode
 
@@ -94,27 +93,6 @@ def register_agropest_dataset(name, json_file, image_root, class_names=None):
     MetadataCatalog.get(name).set(**metadata_dict)
 
 
-def _resolve_data_root(preferred_root):
-    """Return the first candidate root that actually contains AgroPest splits."""
-    candidates = [preferred_root]
-    env_root = os.getenv("AGROPEST_DATA_ROOT")
-    if env_root:
-        candidates.append(env_root)
-    candidates.append("/root/autodl-tmp/dataset")
-    repo_root = Path(__file__).resolve().parents[2]
-    candidates.append(str(repo_root / "data" / "AgroPest-12"))
-
-    for root in candidates:
-        if not root:
-            continue
-        split_dir = os.path.join(root, "train", "images")
-        if os.path.isdir(split_dir):
-            if os.path.abspath(root) != os.path.abspath(preferred_root):
-                print(f"Resolved data root to {root} (preferred {preferred_root} missing)")
-            return root
-    return preferred_root
-
-
 def register_all_agropest_splits(data_root, coco_json_dir, splits=['train', 'valid', 'test']):
     """
     Register all splits of AgroPest dataset.
@@ -135,8 +113,6 @@ def register_all_agropest_splits(data_root, coco_json_dir, splits=['train', 'val
         f"insect_class_{i}" for i in range(12)
     ]
 
-    resolved_root = _resolve_data_root(data_root)
-
     for split in splits:
         # COCO JSON file
         if split == 'valid':
@@ -145,7 +121,7 @@ def register_all_agropest_splits(data_root, coco_json_dir, splits=['train', 'val
             json_file = os.path.join(coco_json_dir, f"{split}_coco.json")
 
         # Images directory
-        image_root = os.path.join(resolved_root, split, 'images')
+        image_root = os.path.join(data_root, split, 'images')
 
         # Register
         dataset_name = f"agropest_{split}"

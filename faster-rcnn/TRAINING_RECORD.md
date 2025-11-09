@@ -240,3 +240,139 @@ Proceed to Run 2: Focal Loss + Class Balancing
 - **Date**: November 9, 2025
 - **Training Time**: ~50 minutes
 - **Branch**: Yuchao/faster-rcnn-run2
+
+---
+
+# Run 2: Focal Loss + Class Balancing (FAILED)
+
+## Changes from Run 1
+
+### Loss Function
+- Replaced standard cross-entropy with **Focal Loss**
+- Parameters: Alpha=0.25, Gamma=2.0
+- Implementation: FocalStandardROIHeads with FocalFastRCNNOutputLayers
+- Rationale: Address easy/hard example imbalance
+
+### Data Sampling
+- Implemented **RepeatFactorTrainingSampler** for class balancing
+- Repeat threshold: 0.001 (oversample classes with <0.1% frequency)
+- Effective dataset size after resampling: enlarged training set
+- Rationale: Oversample minority classes
+
+### Other Settings
+- Identical anchor configuration to Run 1: multi-scale anchors
+- All other hyperparameters unchanged
+
+## Training Set Class Distribution
+
+| Class | Instances | Percentage |
+|-------|-----------|------------|
+| 0 | 2,231 | 14.60% |
+| 1 | 1,596 | 10.44% |
+| 2 | 1,058 | 6.92% |
+| 3 | 1,740 | 11.39% |
+| 4 | 1,083 | 7.09% |
+| 5 | 1,182 | 7.73% |
+| 6 | 1,071 | 7.01% |
+| 7 | 1,062 | 6.95% |
+| 8 | 918 | 6.01% |
+| 9 | 1,199 | 7.85% |
+| 10 | 1,167 | 7.64% |
+| 11 | 975 | 6.38% |
+
+## Results
+
+### Test Set Performance
+
+| Metric | Run 1 | Run 2 | Change |
+|--------|-------|-------|--------|
+| mAP | 43.35% | 33.65% | **-9.70%** |
+| AP50 | 74.41% | 57.37% | **-17.04%** |
+| AP75 | 44.34% | 36.23% | **-8.11%** |
+| APm (medium) | 13.21% | 10.92% | **-2.29%** |
+| APl (large) | 45.57% | 35.24% | **-10.33%** |
+
+### Per-Class Performance Changes
+
+| Class | Run 1 | Run 2 | Change | Severity |
+|-------|-------|-------|--------|----------|
+| 0 | 27.84% | 19.30% | -8.54% | Severe |
+| 1 | 43.41% | 38.20% | -5.21% | Moderate |
+| 2 | 27.61% | 12.24% | **-15.37%** | Critical |
+| 3 | 25.83% | 13.39% | **-12.44%** | Critical |
+| 4 | 28.02% | 19.66% | -8.36% | Severe |
+| 5 | 33.04% | 17.63% | **-15.41%** | Critical |
+| 6 | 31.05% | 24.79% | -6.26% | Moderate |
+| 7 | 78.18% | 73.50% | -4.68% | Moderate |
+| 8 | 45.29% | 24.63% | **-20.66%** | Catastrophic |
+| 9 | 61.32% | 52.07% | -9.25% | Severe |
+| 10 | 59.30% | 50.58% | -8.72% | Severe |
+| 11 | 59.32% | 57.85% | -1.47% | Minor |
+
+**Classes degraded: 12/12 (100%)**
+**Average degradation: -9.70%**
+
+## Failure Analysis
+
+### Critical Issues
+
+1. **Universal Performance Collapse**
+   - All 12 classes degraded, no improvements whatsoever
+   - 4 classes suffered catastrophic/critical degradation (>10% drop)
+   - Class 8 lost 20.66% AP - completely destroyed
+
+2. **Focal Loss Backfire**
+   - Expected to help hard examples and minority classes
+   - Instead, severely damaged performance across all classes
+   - May have over-penalized easy examples, disrupting learning
+
+3. **Class Balancing Failure**
+   - RepeatFactorTrainingSampler did not improve minority classes
+   - Classes 2, 3, 5 (relatively rare) suffered critical degradation
+   - Over-sampling may have caused overfitting or noisy gradients
+
+4. **Baseline Performance Superior**
+   - Standard cross-entropy outperforms Focal Loss by 9.70% mAP
+   - Natural class distribution better than forced balancing
+   - Suggests dataset is not severely imbalanced
+
+### Root Cause Hypothesis
+
+1. **Focal Loss Hyperparameters Mismatch**
+   - Alpha=0.25, Gamma=2.0 are standard for object detection
+   - May not suit insect classification with subtle inter-class differences
+   - Focal loss may suppress learning from moderately-hard examples
+
+2. **Sampling-Induced Overfitting**
+   - Repeated sampling of rare classes creates artificial data distribution
+   - Model may overfit to repeated instances
+   - Validation metrics (35.12% mAP) vs Test metrics (33.65% mAP) show generalization gap
+
+3. **Wrong Problem Diagnosis**
+   - Assumed class imbalance was primary bottleneck
+   - Actual problem may be fine-grained feature discrimination
+   - Insect species are visually similar, require robust features not loss reweighting
+
+## Conclusion
+
+**Run 2 is a complete failure.** Focal Loss + Class Balancing produced the worst results of all runs:
+- Baseline (Run 0): 41.65% mAP
+- Run 1 (Multi-scale anchors): 43.35% mAP ✓ Best
+- Run 2 (Focal Loss + Balancing): 33.65% mAP ✗ Worst
+
+**Key Learnings:**
+1. Class imbalance is NOT the primary bottleneck for AgroPest-12
+2. Standard cross-entropy is superior to Focal Loss for this task
+3. Natural data distribution outperforms forced class balancing
+4. Multi-scale anchors (Run 1) remain the best improvement strategy
+
+**Recommendation:** Abandon loss function / sampling approaches. Focus on:
+- Data augmentation specific to insect images
+- Better backbone architectures (e.g., ResNet-101, Swin Transformer)
+- Longer training or different learning rate schedules
+
+## Training Details
+- **Date**: November 9, 2025
+- **Training Time**: ~50 minutes
+- **Branch**: Yuchao/faster-rcnn-run2
+- **Status**: FAILED - Do not use for final model

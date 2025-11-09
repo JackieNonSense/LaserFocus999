@@ -17,7 +17,9 @@ import torch
 from detectron2.config import get_cfg
 from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import COCOEvaluator
-from detectron2.data import build_detection_train_loader
+from detectron2.data import build_detection_train_loader, DatasetMapper
+from detectron2.data.samplers import RepeatFactorTrainingSampler
+from detectron2.data import DatasetCatalog
 from detectron2 import model_zoo
 
 from data.dataset import register_all_agropest_splits
@@ -25,7 +27,7 @@ from data.dataset import register_all_agropest_splits
 
 class Trainer(DefaultTrainer):
     """
-    Custom Trainer with COCO evaluation during training.
+    Custom Trainer with COCO evaluation and optional RepeatFactorTrainingSampler.
     """
 
     @classmethod
@@ -36,6 +38,47 @@ class Trainer(DefaultTrainer):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
+
+    @classmethod
+    def build_train_loader(cls, cfg):
+        """
+        Build train loader with optional RepeatFactorTrainingSampler for class balancing.
+        """
+        # Check if RepeatFactorTrainingSampler is requested
+        sampler_name = cfg.DATALOADER.get("SAMPLER_TRAIN", "TrainingSampler")
+
+        if sampler_name == "RepeatFactorTrainingSampler":
+            dataset_name = cfg.DATASETS.TRAIN[0]
+            dataset_dicts = DatasetCatalog.get(dataset_name)
+
+            print(f"\nSetting up class-balanced sampling for {len(dataset_dicts)} images...")
+
+            # Use RepeatFactorTrainingSampler to oversample minority classes
+            repeat_thresh = cfg.DATALOADER.get("REPEAT_THRESHOLD", 0.001)
+
+            repeat_factors = RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
+                dataset_dicts,
+                repeat_thresh=repeat_thresh,
+            )
+            sampler = RepeatFactorTrainingSampler(
+                repeat_factors,
+                shuffle=True,
+                seed=cfg.SEED,
+            )
+
+            print(f"RepeatFactorTrainingSampler initialized with threshold={repeat_thresh}")
+            print(f"Effective dataset size after resampling: {int(repeat_factors.sum().item())}")
+
+            mapper = DatasetMapper(cfg, is_train=True)
+
+            return build_detection_train_loader(
+                cfg,
+                mapper=mapper,
+                sampler=sampler
+            )
+        else:
+            # Use default training sampler
+            return build_detection_train_loader(cfg)
 
 
 def setup_cfg(args):

@@ -107,10 +107,11 @@ def register_all_agropest_splits(data_root, coco_json_dir, splits=['train', 'val
         coco_json_dir = "/path/to/faster-rcnn/outputs/coco_annotations"
         register_all_agropest_splits(data_root, coco_json_dir)
     """
-    # AgroPest-12 has 12 insect classes
-    # TODO: Update these with actual class names from the dataset
+    # AgroPest-12 has 12 insect classes with actual names
     class_names = [
-        f"insect_class_{i}" for i in range(12)
+        "Ants", "Bees", "Beetles", "Caterpillars",
+        "Earthworms", "Earwigs", "Grasshoppers", "Moths",
+        "Slugs", "Snails", "Wasps", "Weevils"
     ]
 
     for split in splits:

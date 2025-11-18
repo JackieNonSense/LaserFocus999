@@ -17,7 +17,9 @@ import torch
 from detectron2.config import get_cfg
 from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import COCOEvaluator
-from detectron2.data import build_detection_train_loader
+from detectron2.data import build_detection_train_loader, DatasetMapper
+from detectron2.data.samplers import RepeatFactorTrainingSampler
+from detectron2.data import DatasetCatalog
 from detectron2 import model_zoo
 
 from data.dataset import register_all_agropest_splits
@@ -25,7 +27,7 @@ from data.dataset import register_all_agropest_splits
 
 class Trainer(DefaultTrainer):
     """
-    Custom Trainer with COCO evaluation during training.
+    Custom Trainer with COCO evaluation and optional RepeatFactorTrainingSampler.
     """
 
     @classmethod
@@ -36,6 +38,72 @@ class Trainer(DefaultTrainer):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
+
+    @classmethod
+    def build_train_loader(cls, cfg):
+        """
+        Build train loader with optional RepeatFactorTrainingSampler for class balancing.
+        """
+        # Check if RepeatFactorTrainingSampler is requested
+        sampler_name = cfg.DATALOADER.get("SAMPLER_TRAIN", "TrainingSampler")
+
+        if sampler_name == "RepeatFactorTrainingSampler":
+            from detectron2.data import build_detection_train_loader
+            from detectron2.data.build import (
+                get_detection_dataset_dicts,
+                trivial_batch_collator,
+            )
+            from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, MapDataset
+            from detectron2.data.samplers import TrainingSampler
+
+            dataset_dicts = get_detection_dataset_dicts(
+                cfg.DATASETS.TRAIN,
+                filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+                min_keypoints=cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
+                if cfg.MODEL.KEYPOINT_ON else 0,
+                proposal_files=cfg.DATASETS.PROPOSAL_FILES_TRAIN if cfg.MODEL.LOAD_PROPOSALS else None,
+            )
+
+            print(f"\nSetting up class-balanced sampling for {len(dataset_dicts)} images...")
+
+            # Use RepeatFactorTrainingSampler to oversample minority classes
+            repeat_thresh = cfg.DATALOADER.get("REPEAT_THRESHOLD", 0.001)
+
+            repeat_factors = RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
+                dataset_dicts,
+                repeat_thresh=repeat_thresh,
+            )
+            sampler = RepeatFactorTrainingSampler(
+                repeat_factors,
+                shuffle=True,
+                seed=cfg.SEED,
+            )
+
+            print(f"RepeatFactorTrainingSampler initialized with threshold={repeat_thresh}")
+            print(f"Effective dataset size after resampling: {int(repeat_factors.sum().item())}")
+
+            # Build dataset and loader with custom sampler
+            mapper = DatasetMapper(cfg, is_train=True)
+            dataset = DatasetFromList(dataset_dicts, copy=False)
+            dataset = MapDataset(dataset, mapper)
+
+            # Note: AspectRatioGroupedDataset is incompatible with custom samplers
+            # Disable aspect ratio grouping when using RepeatFactorTrainingSampler
+            batch_sampler = torch.utils.data.sampler.BatchSampler(
+                sampler, cfg.SOLVER.IMS_PER_BATCH, drop_last=True
+            )
+
+            data_loader = torch.utils.data.DataLoader(
+                dataset,
+                num_workers=cfg.DATALOADER.NUM_WORKERS,
+                batch_sampler=batch_sampler,
+                collate_fn=trivial_batch_collator,
+                worker_init_fn=lambda worker_id: __import__('numpy').random.seed(cfg.SEED + worker_id),
+            )
+            return data_loader
+        else:
+            # Use default training sampler
+            return build_detection_train_loader(cfg)
 
 
 def setup_cfg(args):

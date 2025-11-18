@@ -17,6 +17,23 @@ api_keys.json
 **/*secret*
 **/*token*
 
+# Agent-generated documentation (Codex)
+AGENTS.md
+.agents/
+*.agents
+
+# ChatGPT / OpenAI configs, logs, and exports
+.chatgpt/
+chatgpt/
+ChatGPT/
+*.chatgpt
+openai/
+.openai/
+openai_api_key.*
+openai_key.*
+openai_config.*
+**/*chatgpt*
+
 # Dataset Files (Large - Do not upload)
 # Only ignore dataset directories in root or specific locations
 /data/
@@ -37,7 +54,10 @@ api_keys.json
 /**/test/labels/
 
 # Trained Models (Project requirement - Do not upload)
+# Generated model checkpoints (keep source code modules)
 models/
+!faster-rcnn/src/models/
+!faster-rcnn/src/models/**/*.py
 *.h5
 *.hdf5
 *.pt

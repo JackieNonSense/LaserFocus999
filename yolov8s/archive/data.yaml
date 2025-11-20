@@ -1,6 +1,6 @@
-train: ./train/images
-val:   ./valid/images
-test:  ./test/images
+train: ../train/images
+val: ../valid/images
+test: ../test/images
 
 nc: 12
 names:
@@ -18,3 +18,11 @@ names:
     "Wasps",
     "Weevils",
   ]
+oversample:
+  Caterpillars: 3
+  Earthworms: 3
+  Beetles: 2
+  Grasshoppers: 2
+  Ants: 2
+  
+  

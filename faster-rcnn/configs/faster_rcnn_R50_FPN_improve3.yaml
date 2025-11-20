@@ -1,0 +1,102 @@
+# ================================================================
+# Faster R-CNN R50-FPN for AgroPest-12
+# Config: Run 1 (proven stable) + Phase 1+2 enhancements
+
+
+MODEL:
+  WEIGHTS: "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
+
+  BACKBONE:
+    NAME: "build_resnet_fpn_backbone"
+    FREEZE_AT: 0  # Don't freeze backbone - need full fine-tuning for insects
+
+  FPN:
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    OUT_CHANNELS: 256
+
+  ANCHOR_GENERATOR:
+    NAME: "DefaultAnchorGenerator"
+    SIZES:
+      - [8, 16, 24]       # P3 (stride 8) 
+      - [32, 48, 64]      # P4 (stride 16) 
+      - [80, 96, 128]     # P5 (stride 32) 
+      - [160, 192, 256]   # P6 (stride 64) 
+      - [256, 320, 384]   # P7 (stride 128) 
+    ASPECT_RATIOS:
+      - [0.5, 1.0, 2.0]
+
+  RPN:
+    IN_FEATURES: ["p2", "p3", "p4", "p5", "p6"]
+    PRE_NMS_TOPK_TRAIN: 12000
+    POST_NMS_TOPK_TRAIN: 2000
+    PRE_NMS_TOPK_TEST: 6000
+    POST_NMS_TOPK_TEST: 1000
+    NMS_THRESH: 0.7
+
+  ROI_HEADS:
+    NAME: "StandardROIHeads"
+    NUM_CLASSES: 12
+    BATCH_SIZE_PER_IMAGE: 512
+    POSITIVE_FRACTION: 0.25
+    SCORE_THRESH_TEST: 0.5
+
+  ROI_BOX_HEAD:
+    NAME: "FastRCNNConvFCHead"
+    POOLER_RESOLUTION: 7
+    POOLER_SAMPLING_RATIO: 0
+    BBOX_REG_LOSS_TYPE: "smooth_l1"
+    CLS_AGNOSTIC_BBOX_REG: false
+    NUM_FC: 2
+    FC_DIM: 1024
+
+DATASETS:
+  TRAIN: ("agropest_train",)
+  TEST: ("agropest_valid",)
+
+DATALOADER:
+  NUM_WORKERS: 4
+  SAMPLER_TRAIN: "TrainingSampler"
+  FILTER_EMPTY_ANNOTATIONS: true
+  ASPECT_RATIO_GROUPING: true
+
+
+SOLVER:
+  IMS_PER_BATCH: 4
+  BASE_LR: 0.001
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0001
+  WARMUP_METHOD: "linear"
+  WARMUP_FACTOR: 0.001
+  WARMUP_ITERS: 1500
+  
+ 
+  STEPS: [20000, 32000]
+  MAX_ITER: 40000
+  GAMMA: 0.1
+  
+  CHECKPOINT_PERIOD: 2500
+
+INPUT:
+  # Training time resolution
+  MIN_SIZE_TRAIN: [640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344]
+  MAX_SIZE_TRAIN: 1600
+  
+  # Test time resolution
+  MIN_SIZE_TEST: 800
+  MAX_SIZE_TEST: 1600
+  
+  RANDOM_FLIP: "horizontal"
+  # Phase 2: Color augmentation will be applied in mapper (train_improve3.py)
+
+TEST:
+  EVAL_PERIOD: 2500
+  DETECTIONS_PER_IMAGE: 100
+  AUG:
+    ENABLED: true
+    MIN_SIZES: [640, 800, 960]
+    MAX_SIZE: 1600
+    FLIP: true
+
+OUTPUT_DIR: "/root/autodl-tmp/outputs/checkpoints/faster_rcnn_R50_FPN_improve3"
+
+SEED: 42

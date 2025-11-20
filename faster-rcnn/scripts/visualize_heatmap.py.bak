@@ -10,8 +10,6 @@ from collections import defaultdict
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "utils"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "utils"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "utils"))
 import cv2
 import numpy as np
 import torch
@@ -20,8 +18,8 @@ from detectron2.engine import DefaultPredictor
 from detectron2 import model_zoo
 
 # Import our Grad-CAM implementation
-# from gradcam import GradCAM, overlay_heatmap, apply_colormap
-from gradcam import GradCAM, overlay_heatmap, apply_colormap
+# from utils.gradcam import GradCAM, overlay_heatmap, apply_colormap
+from gradcam import GradCAM, overlay_heatmap, apply_colormapfrom 
 
 # Add src to path for dataset registration
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -405,7 +403,7 @@ def main():
     print(f"Initializing Grad-CAM on layer: {args.target_layer}")
     try:
         if args.use_gradcam_pp:
-            from gradcam import GradCAMPlusPlus
+            from utils.gradcam import GradCAMPlusPlus
             gradcam = GradCAMPlusPlus(predictor.model, target_layer_name=args.target_layer)
             print("Using Grad-CAM++")
         else:
